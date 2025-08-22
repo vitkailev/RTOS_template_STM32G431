@@ -47,6 +47,10 @@
   * @retval None
   */
 void HAL_MspInit(void) {
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
+    __HAL_RCC_PWR_CLK_ENABLE();
+
+    HAL_PWREx_DisableUCPDDeadBattery();
 }
 
 /**
@@ -55,6 +59,28 @@ void HAL_MspInit(void) {
   * @retval None
   */
 void HAL_MspDeInit(void) {
+}
+
+/**
+ * @brief Initialize the CRC module, turn ON a clock source
+ * @param hcrc is the pointer to the data structure of the CRC handle (HAL).
+ */
+void HAL_CRC_MspInit(CRC_HandleTypeDef *hcrc) {
+    if (hcrc->Instance == CRC) {
+        __HAL_RCC_CRC_CLK_ENABLE();
+    }
+}
+
+/**
+ * @brief DeInitialize the CRC module
+ * @param hcrc is the pointer to the data structure of the CRC handle (HAL).
+ */
+void HAL_CRC_MspDeInit(CRC_HandleTypeDef *hcrc) {
+    if (hcrc->Instance == CRC) {
+        __HAL_RCC_CRC_FORCE_RESET();
+        __HAL_RCC_CRC_RELEASE_RESET();
+        __HAL_RCC_CRC_CLK_DISABLE();
+    }
 }
 
 /**
