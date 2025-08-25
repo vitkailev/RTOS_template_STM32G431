@@ -1,7 +1,17 @@
 #include "stm32g4xx_hal.h"
 
+#include "settings.h"
+#include "jobs.h"
+
+McuDef Mcu;
+
 int main(void) {
     HAL_Init();
+    initialization(&Mcu);
+    HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
+
+    createJobs(&Mcu);
+    vTaskStartScheduler();
 
     while (1) {
     }
