@@ -21,6 +21,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32g4xx_hal.h"
 
+#include "variables.h"
+
 /** @addtogroup STM32G4xx_HAL_Driver
   * @{
   */
@@ -59,6 +61,90 @@ void HAL_MspInit(void) {
   * @retval None
   */
 void HAL_MspDeInit(void) {
+}
+
+/**
+ * @brief Initialize the base timers, turn ON a clock source and setup interrupt vector
+ * @param htim is the pointer to the data structure of the base timer handle (HAL).
+ */
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM15) {
+        __HAL_RCC_TIM15_CLK_ENABLE();
+    }
+}
+
+/**
+ * @brief DeInitialize the base timers
+ * @param htim is the pointer to the data structure of the base timer handle (HAL).
+ */
+void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM15) {
+        __HAL_RCC_TIM15_FORCE_RESET();
+        __HAL_RCC_TIM15_RELEASE_RESET();
+        __HAL_RCC_TIM15_CLK_DISABLE();
+    }
+}
+
+/**
+ * @brief Initialize the ADC module, turn ON a clock source, setup GPIO and interrupt vector
+ * @param hadc is the pointer to the data structure of the ADC handle (HAL).
+ */
+void HAL_ADC_MspInit(ADC_HandleTypeDef *hadc) {
+    GPIO_InitTypeDef gpioInit = {0};
+    RCC_PeriphCLKInitTypeDef clockInit = {0};
+
+    if (hadc->Instance == ADC1) {
+        clockInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
+        clockInit.Adc12ClockSelection = RCC_ADC12CLKSOURCE_PLL;
+
+        if (HAL_RCCEx_PeriphCLKConfig(&clockInit) == HAL_OK) {
+            __HAL_RCC_ADC12_CLK_ENABLE();
+
+            __HAL_RCC_GPIOA_CLK_ENABLE();
+            gpioInit.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+            gpioInit.Mode = GPIO_MODE_ANALOG;
+            gpioInit.Pull = GPIO_NOPULL;
+            HAL_GPIO_Init(GPIOA, &gpioInit);
+
+            __HAL_RCC_DMAMUX1_CLK_ENABLE();
+            __HAL_RCC_DMA1_CLK_ENABLE();
+
+            DMA_HandleTypeDef *dmaInit = (DMA_HandleTypeDef *) Mcu.adc.dmaHandle;
+            dmaInit->Instance = DMA1_Channel1;
+            dmaInit->Init.Request = DMA_REQUEST_ADC1;
+            dmaInit->Init.Direction = DMA_PERIPH_TO_MEMORY;
+            dmaInit->Init.PeriphInc = DMA_PINC_DISABLE;
+            dmaInit->Init.MemInc = DMA_MINC_ENABLE;
+            dmaInit->Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+            dmaInit->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+            dmaInit->Init.Mode = DMA_CIRCULAR;
+            dmaInit->Init.Priority = DMA_PRIORITY_HIGH;
+            if (HAL_DMA_Init(dmaInit) == HAL_OK) {
+                __HAL_LINKDMA(hadc, DMA_Handle, *dmaInit);
+
+                HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+            }
+        }
+    }
+}
+
+/**
+ * @brief DeInitialize the ADC module
+ * @param hadc is the pointer to the data structure of the ADC handle (HAL).
+ */
+void HAL_ADC_MspDeInit(ADC_HandleTypeDef *hadc) {
+    if (hadc->Instance == ADC1) {
+        __HAL_RCC_ADC12_FORCE_RESET();
+        __HAL_RCC_ADC12_RELEASE_RESET();
+        __HAL_RCC_ADC12_CLK_DISABLE();
+
+        HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0);
+        HAL_GPIO_DeInit(GPIOA, GPIO_PIN_1);
+
+        HAL_NVIC_DisableIRQ(DMA1_Channel1_IRQn);
+        HAL_DMA_DeInit((DMA_HandleTypeDef *) Mcu.adc.dmaHandle);
+    }
 }
 
 /**

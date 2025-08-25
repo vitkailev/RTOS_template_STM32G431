@@ -2,6 +2,9 @@
 
 #include "settings.h"
 
+static TIM_HandleTypeDef timer15Handle;
+static ADC_HandleTypeDef adcHandle;
+static DMA_HandleTypeDef dma1Handle;
 static CRC_HandleTypeDef crcHandle;
 static IWDG_HandleTypeDef wdtHandle;
 
@@ -79,6 +82,111 @@ static int settingGPIO(void) {
 }
 
 /**
+ * @brief Setting general purpose timer
+ * @param t is the base timer data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
+static int settingTimer(TimerDef *t) {
+    TIM_HandleTypeDef *timInit = NULL;
+    TIM_MasterConfigTypeDef masterConf = {0};
+
+    uint32_t sourceClock = HAL_RCC_GetPCLK2Freq();
+    // APB2Divider != 1
+    sourceClock <<= 1;
+
+    t->handle = (void *) &timer15Handle;
+    t->freq = 100000;
+    t->basePrescaler = t->currentPrescaler = 71;
+
+    timInit = (TIM_HandleTypeDef *) t->handle;
+    timInit->Instance = TIM15;
+    timInit->Init.Period = 9;
+    timInit->Init.Prescaler = t->basePrescaler;
+    timInit->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    timInit->Init.CounterMode = TIM_COUNTERMODE_UP;
+    timInit->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    timInit->Init.RepetitionCounter = 0;
+
+    if (HAL_TIM_Base_Init(timInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    masterConf.MasterOutputTrigger = TIM_TRGO_UPDATE;
+    masterConf.MasterOutputTrigger2 = TIM_TRGO2_UPDATE;
+    masterConf.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    if (HAL_TIMEx_MasterConfigSynchronization(timInit, &masterConf) != HAL_OK)
+        return SETTING_ERROR;
+
+    return SETTING_SUCCESS;
+}
+
+/**
+ * @brief Setting analog-to-digital converter (ADC)
+ * @param adc is the base ADC data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
+static int settingADC(AdcDef *adc) {
+    adc->handle = (void *) &adcHandle;
+    adc->dmaHandle = (void *) &dma1Handle;
+
+    ADC_HandleTypeDef *adcInit = (ADC_HandleTypeDef *) adc->handle;
+    adcInit->Instance = ADC1;
+    adcInit->Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+    adcInit->Init.Resolution = ADC_RESOLUTION_12B;
+    adcInit->Init.DataAlign = ADC_DATAALIGN_RIGHT;
+    adcInit->Init.GainCompensation = 0;
+    adcInit->Init.ScanConvMode = ADC_SCAN_ENABLE;
+    adcInit->Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+    adcInit->Init.LowPowerAutoWait = DISABLE;
+    adcInit->Init.ContinuousConvMode = DISABLE;
+    adcInit->Init.NbrOfConversion = 3;
+    adcInit->Init.DiscontinuousConvMode = ENABLE;
+    adcInit->Init.NbrOfDiscConversion = 1;
+    adcInit->Init.ExternalTrigConv = ADC_EXTERNALTRIG_T15_TRGO;
+    adcInit->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIG_EDGE_RISING;
+    adcInit->Init.SamplingMode = ADC_SAMPLING_MODE_NORMAL;
+    adcInit->Init.DMAContinuousRequests = ENABLE;
+    adcInit->Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+    adcInit->Init.OversamplingMode = DISABLE;
+    //    adcInit->Init.Oversampling =;
+
+    if (HAL_ADC_Init(adcInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    if (HAL_ADCEx_Calibration_Start(adcInit, ADC_SINGLE_ENDED) != HAL_OK)
+        return SETTING_ERROR;
+
+    ADC_ChannelConfTypeDef chInit = {0};
+
+    chInit.SamplingTime = ADC_SAMPLETIME_247CYCLES_5; // 5.41658 us
+    chInit.SingleDiff = ADC_SINGLE_ENDED;
+    chInit.OffsetNumber = ADC_OFFSET_NONE;
+    chInit.Offset = 0;
+    chInit.OffsetSign = ADC_OFFSET_SIGN_NEGATIVE;
+    chInit.OffsetSaturation = DISABLE;
+
+    // PA0, ADC12
+    chInit.Channel = ADC_CHANNEL_1;
+    chInit.Rank = ADC_REGULAR_RANK_1;
+    if (HAL_ADC_ConfigChannel(adcInit, &chInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    // PA1, ADC12
+    chInit.Channel = ADC_CHANNEL_2;
+    chInit.Rank = ADC_REGULAR_RANK_2;
+    if (HAL_ADC_ConfigChannel(adcInit, &chInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    // only ADC1
+    // ADC_CHANNEL_TEMPSENSOR_ADC1 or ADC_CHANNEL_VREFINT
+    chInit.Channel = ADC_CHANNEL_TEMPSENSOR_ADC1;
+    chInit.Rank = ADC_REGULAR_RANK_3;
+    if (HAL_ADC_ConfigChannel(adcInit, &chInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    return SETTING_SUCCESS;
+}
+
+/**
  * @brief Setting Cyclic-Redundancy-Check (CRC) module
  * @param mcu is the base MCU data structure
  * @return SETTING_SUCCESS or SETTING_ERROR
@@ -87,14 +195,14 @@ static int settingCRC(McuDef *mcu) {
     mcu->handles.crc = &crcHandle;
     CRC_HandleTypeDef *crcInit = (CRC_HandleTypeDef *) mcu->handles.crc;
     crcInit->Instance = CRC;
-    crcInit->InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES; // uint8_t
+    crcInit->InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
     crcInit->Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
     crcInit->Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
     crcInit->Init.CRCLength = CRC_POLYLENGTH_32B;
     crcInit->Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
     crcInit->Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
 
-    if (HAL_CRC_Init(&crcHandle) != HAL_OK)
+    if (HAL_CRC_Init(crcInit) != HAL_OK)
         return SETTING_ERROR;
 
     return SETTING_SUCCESS;
@@ -119,17 +227,20 @@ static int settingWDT(McuDef *mcu) {
     return SETTING_SUCCESS;
 }
 
-int turnOnInterrupts(McuDef *mcu) {
-    return SETTING_SUCCESS;
-}
-
+/**
+ * @brief Run the MCU modules setting process
+ * @param mcu is the base MCU data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
 int initialization(McuDef *mcu) {
     if (settingSystemClock() != SETTING_SUCCESS) {
     } else if (settingGPIO() != SETTING_SUCCESS) {
+    } else if (settingTimer(&mcu->adc.timer) != SETTING_SUCCESS) {
+    } else if (settingADC(&mcu->adc) != SETTING_SUCCESS) {
     } else if (settingCRC(mcu) != SETTING_SUCCESS) {
     } else if (settingWDT(mcu) != SETTING_SUCCESS) {
     } else {
-        return turnOnInterrupts(mcu);
+        return SETTING_SUCCESS;
     }
 
     return SETTING_ERROR;

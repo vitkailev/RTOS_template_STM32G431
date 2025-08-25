@@ -19,7 +19,10 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include "stm32g4xx_hal.h"
+
 #include "stm32g4xx_it.h"
+#include "variables.h"
 
 /******************************************************************************/
 /*           Cortex-M4 Processor Interruption and Exception Handlers          */
@@ -74,3 +77,7 @@ void DebugMon_Handler(void) {
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32g4xx.s).                    */
 /******************************************************************************/
+
+void DMA1_Channel1_IRQHandler(void) {
+    HAL_DMA_IRQHandler((DMA_HandleTypeDef *) Mcu.adc.dmaHandle);
+}
