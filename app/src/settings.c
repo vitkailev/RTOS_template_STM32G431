@@ -1,9 +1,10 @@
 #include "stm32g4xx_hal.h"
 
 #include "settings.h"
-#include "uartJob.h"
+#include "SerialJob.h"
 
 static TIM_HandleTypeDef timer15Handle;
+static TIM_HandleTypeDef timer16Handle;
 static ADC_HandleTypeDef adcHandle;
 static CRC_HandleTypeDef crcHandle;
 static IWDG_HandleTypeDef wdtHandle;
@@ -186,6 +187,52 @@ static int settingADC(AdcDef *adc) {
 }
 
 /**
+ * @brief Setting PWM output signal
+ * @param t is the base timer data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
+static int settingPWM(TimerDef *t) {
+    TIM_HandleTypeDef *timInit = NULL;
+    TIM_OC_InitTypeDef pwm = {0};
+
+    uint32_t sourceClock = HAL_RCC_GetPCLK2Freq();
+    // APB2Divider != 1
+    sourceClock *= 2;
+
+    t->handle = (void *) &timer16Handle;
+    t->freq = 10000;
+    t->basePrescaler = t->currentPrescaler = 71;
+
+    timInit = (TIM_HandleTypeDef *) t->handle;
+    timInit->Instance = TIM16;
+    timInit->Init.Period = 99;
+    timInit->Init.Prescaler = t->basePrescaler;
+    timInit->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    timInit->Init.CounterMode = TIM_COUNTERMODE_UP;
+    timInit->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    timInit->Init.RepetitionCounter = 0;
+
+    if (HAL_TIM_PWM_Init(timInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    pwm.OCMode = TIM_OCMODE_PWM1;
+    pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
+    pwm.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+    pwm.OCFastMode = TIM_OCFAST_DISABLE;
+    pwm.OCIdleState = TIM_OCIDLESTATE_RESET;
+    pwm.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+
+    pwm.Pulse = 5;
+    if (HAL_TIM_PWM_ConfigChannel(timInit, &pwm, TIM_CHANNEL_1) != HAL_OK)
+        return SETTING_ERROR;
+
+    if (HAL_TIMEx_ConfigDeadTime(timInit, 128) != HAL_OK)
+        return SETTING_ERROR;
+
+    return SETTING_SUCCESS;
+}
+
+/**
  * @brief Setting UART modules
  * @param uart is the UartDef data structure
  * @return SETTING_SUCCESS or SETTING_ERROR
@@ -258,10 +305,18 @@ static int settingWDT(McuDef *mcu) {
  * @return SETTING_SUCCESS or SETTING_ERROR
  */
 int initialization(McuDef *mcu) {
+    // (n * Routine task period) == 60 ms
+    mcu->button.duration = 3;
+    mcu->button.handle = GPIOC;
+    mcu->button.pin = GPIO_PIN_13;
+    mcu->led.handle = GPIOA;
+    mcu->led.pin = GPIO_PIN_5;
+
     if (settingSystemClock() != SETTING_SUCCESS) {
     } else if (settingGPIO() != SETTING_SUCCESS) {
     } else if (settingTimer(&mcu->adc.timer) != SETTING_SUCCESS) {
     } else if (settingADC(&mcu->adc) != SETTING_SUCCESS) {
+    } else if (settingPWM(&mcu->pwm) != SETTING_SUCCESS) {
     } else if (settingUART(&UART1_intf) != SETTING_SUCCESS) {
     } else if (settingCRC(mcu) != SETTING_SUCCESS) {
     } else if (settingWDT(mcu) != SETTING_SUCCESS) {
