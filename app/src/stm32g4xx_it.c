@@ -22,8 +22,7 @@
 #include "stm32g4xx_hal.h"
 
 #include "stm32g4xx_it.h"
-#include "variables.h"
-
+#include "jobs.h"
 /******************************************************************************/
 /*           Cortex-M4 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
@@ -79,5 +78,17 @@ void DebugMon_Handler(void) {
 /******************************************************************************/
 
 void DMA1_Channel1_IRQHandler(void) {
-    HAL_DMA_IRQHandler((DMA_HandleTypeDef *) Mcu.adc.dmaHandle);
+    HAL_DMA_IRQHandler(((ADC_HandleTypeDef *) Application.hardware.adc.handle)->DMA_Handle);
+}
+
+void DMA1_Channel4_IRQHandler(void) {
+    HAL_DMA_IRQHandler(((UART_HandleTypeDef *) Serial.uart->handle)->hdmatx);
+}
+
+void DMA1_Channel5_IRQHandler(void) {
+    HAL_DMA_IRQHandler(((UART_HandleTypeDef *) Serial.uart->handle)->hdmarx);
+}
+
+void USART1_IRQHandler(void) {
+    HAL_UART_IRQHandler((UART_HandleTypeDef *) Serial.uart->handle);
 }
