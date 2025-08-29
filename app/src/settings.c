@@ -226,7 +226,7 @@ static int settingPWM(TimerDef *t) {
     if (HAL_TIM_PWM_ConfigChannel(timInit, &pwm, TIM_CHANNEL_1) != HAL_OK)
         return SETTING_ERROR;
 
-    if (HAL_TIMEx_ConfigDeadTime(timInit, 128) != HAL_OK)
+    if (HAL_TIMEx_ConfigDeadTime(timInit, 24) != HAL_OK)
         return SETTING_ERROR;
 
     return SETTING_SUCCESS;
