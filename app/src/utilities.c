@@ -60,7 +60,10 @@ void checkPinState(PortDef *port) {
  * @param value is the duty value (from 0 to 100)
  */
 void setPWMDutyCycle(TimerDef *tim, uint16_t channel, uint8_t value) {
-    value = (value > 100) ? 100 : value;
+    if (value >= 100)
+        value = 99;
+    else if (value == 0)
+        value = 1;
     __HAL_TIM_SET_COMPARE((TIM_HandleTypeDef *) tim->handle, channel, value);
 }
 
