@@ -3,14 +3,15 @@
 #include "settings.h"
 #include "jobs.h"
 
-McuDef Mcu;
+JobsDef Application;
+SerialPortDef Serial;
 
 int main(void) {
     HAL_Init();
-    initialization(&Mcu);
+    initialization(&Application.hardware);
     HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
 
-    createJobs(&Mcu);
+    createJobs(&Application);
     vTaskStartScheduler();
 
     while (1) {

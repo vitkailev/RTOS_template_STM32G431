@@ -9,25 +9,23 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-
 enum Constants {
-    TIME_DELAY_MS = 50,
-
-    NUMBER_ADC_CHANNELS = 3,
-
-    ROUTINE_JOB = 0,
-    SENSORS_JOB,
-    COMMUNICATION_JOB,
-    NUMBER_JOBS,
+    ANALOG_IN_1 = 0,
+    ANALOG_IN_2,
+    ANALOG_TEMP_VREF,
+    NUMBER_ADC_CHANNELS,
 };
 
 typedef struct {
-    uint32_t errors; // something expired, if xTicksToWait != portMAX_DELAY
+    bool isTriggered;
+    bool state;
 
-    TaskHandle_t handles[NUMBER_JOBS];
-} JobsDef;
+    uint16_t delay;
+    uint16_t duration;
+
+    uint16_t pin;
+    void *handle;
+} PortDef;
 
 typedef struct {
     uint32_t errors;
@@ -47,7 +45,6 @@ typedef struct {
     uint16_t values[NUMBER_ADC_CHANNELS]; // mV
 
     void *handle;
-    void *dmaHandle;
     TimerDef timer;
 } AdcDef;
 
@@ -57,16 +54,14 @@ typedef struct {
 } HandlesDef;
 
 typedef struct {
-    uint32_t runtime;
     int32_t temp;
 
+    PortDef button;
+    PortDef led;
     AdcDef adc;
+    TimerDef pwm;
     HandlesDef handles;
-
-    JobsDef jobs;
 } McuDef;
-
-extern McuDef Mcu;
 
 #ifdef __cplusplus
 }

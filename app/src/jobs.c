@@ -3,6 +3,7 @@
 #include "stm32g4xx_hal.h"
 
 #include "jobs.h"
+#include "utilities.h"
 
 static StaticTask_t task1TCB;
 static StackType_t task1Stack[configMINIMAL_STACK_SIZE];
@@ -16,75 +17,129 @@ static StackType_t idleStack[configMINIMAL_STACK_SIZE];
 static StaticTask_t timerTCB;
 static StackType_t timerStack[configTIMER_TASK_STACK_DEPTH];
 
+/**
+ * @brief Routine task
+ * @param arg is the function argument to which the scheduler will send the specified parameter
+ */
 static void routineJob(void *arg) {
     McuDef *mcu = (McuDef *) arg;
 
-    TickType_t period = pdMS_TO_TICKS(10); // ms
+    const TickType_t delay = pdMS_TO_TICKS(ROUTINE_DELAY_MS);
+
+    const char *text = "[Thread 0] Push the button\n\r";
 
     while (1) {
-        vTaskDelay(period);
+        vTaskDelay(delay);
 
         HAL_IWDG_Refresh((IWDG_HandleTypeDef *) mcu->handles.wdt);
 
-        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+        checkPinState(&mcu->button);
+        if (isPinTriggered(&mcu->button)) {
+            mcu->button.isTriggered = false;
+            SerialWriteData(&Serial, text, 28);
+        }
     }
 }
 
+/**
+ * @brief Sensors task
+ * @param arg is the function argument to which the scheduler will send the specified parameter
+ */
 static void sensorsJob(void *arg) {
     McuDef *mcu = (McuDef *) arg;
 
+    const TickType_t delay = pdMS_TO_TICKS(SENSORS_DELAY_MS);
+    const TickType_t notifDelay = pdMS_TO_TICKS(SENSORS_NOTIF_DELAY_MS);
     BaseType_t result = pdFALSE;
-    uint32_t notifyValue = 0;
-    TickType_t lastWakeTime = xTaskGetTickCount();
-    TickType_t period = pdMS_TO_TICKS(100); // ms
+    uint32_t notificationValue = 0;
 
     HAL_TIM_Base_Start((TIM_HandleTypeDef *) mcu->adc.timer.handle);
     HAL_ADC_Start_DMA((ADC_HandleTypeDef *) mcu->adc.handle, mcu->adc.rawValues, NUMBER_ADC_CHANNELS);
+    HAL_TIM_PWM_Start((TIM_HandleTypeDef *) mcu->pwm.handle, TIM_CHANNEL_1);
+    HAL_TIMEx_PWMN_Start((TIM_HandleTypeDef *) mcu->pwm.handle, TIM_CHANNEL_1);
 
     while (1) {
-        vTaskDelayUntil(&lastWakeTime, period);
+        vTaskDelay(delay);
 
-        result = xTaskNotifyWait(0x00, ULONG_MAX, &notifyValue, pdMS_TO_TICKS(TIME_DELAY_MS));
+        result = xTaskNotifyWait(0x00, ULONG_MAX, &notificationValue, notifDelay);
         if (result == pdTRUE) {
-            if (notifyValue & JOB_NOTIFY_ADC_FLAG) {
+            if (notificationValue & JOB_NOTIF_SENSOR_FLAG) {
+                // calculate the analog input pins values
                 uint32_t value = 0;
                 for (size_t i = 0; i < (NUMBER_ADC_CHANNELS - 1); ++i) {
                     value = mcu->adc.rawValues[i];
                     value = (value * VDD_VALUE) >> 12;
                     mcu->adc.values[i] = (uint16_t) value;
                 }
+
+                // calculate the temperature of the build-in temperature sensor (in Celsius)
                 mcu->temp = __HAL_ADC_CALC_TEMPERATURE(VDD_VALUE, mcu->adc.rawValues[NUMBER_ADC_CHANNELS - 1],
                                                        ADC_RESOLUTION_12B);
+
+                // update the PWM duty cycle value
+                value = mcu->adc.rawValues[ANALOG_IN_2];
+                value = (value * 100) >> 12;
+                setPWMDutyCycle(&mcu->pwm, TIM_CHANNEL_1, (uint8_t) value);
             }
-            if (result & JOB_NOTIFY_ADC_ERR_FLAG) {
+            if (notificationValue & JOB_NOTIF_SENSOR_ERR_FLAG) {
                 mcu->adc.errType = HAL_ADC_GetError((ADC_HandleTypeDef *) mcu->adc.handle);
                 mcu->adc.errors++;
             }
-        } else {
-            mcu->jobs.errors++;
         }
     }
 }
 
+/**
+ * @brief Communication task
+ * @param arg is the function argument to which the scheduler will send the specified parameter
+ */
 static void communicationJob(void *arg) {
     McuDef *mcu = (McuDef *) arg;
 
+    const TickType_t delay = pdMS_TO_TICKS(COMMUNICATION_DELAY_MS);
+
+    const char *text = "[Thread 2] Input data:";
+    int32_t numBytes = 0;
+    uint8_t buff[64] = {0};
+
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(delay);
+
+        numBytes = SerialReadData(&Serial, buff, 64);
+        if (numBytes) {
+            SerialWriteData(&Serial, text, 22);
+            SerialWriteData(&Serial, buff, numBytes);
+        }
     }
 }
 
-int createJobs(McuDef *mcu) {
-    mcu->jobs.handles[ROUTINE_JOB] = xTaskCreateStatic(routineJob, "routine", configMINIMAL_STACK_SIZE, (void *) mcu,
-                                                       tskIDLE_PRIORITY + 1, task1Stack, &task1TCB);
-    mcu->jobs.handles[SENSORS_JOB] = xTaskCreateStatic(sensorsJob, "sensors", configMINIMAL_STACK_SIZE, (void *) mcu,
-                                                       tskIDLE_PRIORITY + 2, task2Stack, &task2TCB);
-    mcu->jobs.handles[COMMUNICATION_JOB] = xTaskCreateStatic(communicationJob, "communication",
-                                                             configMINIMAL_STACK_SIZE, (void *) mcu,
-                                                             tskIDLE_PRIORITY + 3, task3Stack, &task3TCB);
+/**
+ * @brief Create the prepared task
+ * @param jobs is the JobsDef data structure
+ * @return 0 - success
+ */
+int createJobs(JobsDef *jobs) {
+    jobs->handles[ROUTINE_JOB] = xTaskCreateStatic(routineJob, "routine",
+                                                   configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
+                                                   tskIDLE_PRIORITY + 2, task1Stack, &task1TCB);
+    jobs->handles[SENSORS_JOB] = xTaskCreateStatic(sensorsJob, "sensors",
+                                                   configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
+                                                   tskIDLE_PRIORITY + 4, task2Stack, &task2TCB);
+    jobs->handles[COMMUNICATION_JOB] = xTaskCreateStatic(communicationJob, "communication",
+                                                         configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
+                                                         tskIDLE_PRIORITY + 1, task3Stack, &task3TCB);
+    jobs->handles[SERIAL_PORT_JOB] = SerialJobInit(&Serial, &UART1_intf, tskIDLE_PRIORITY + 3);
+
+    changePinState(&jobs->hardware.led, GPIO_PIN_SET);
     return 0;
 }
 
+/**
+ * @brief The function is used to provide the memory for the RTOS Idle task
+ * @param ppxIdleTaskTCBBuffer
+ * @param ppxIdleTaskStackBuffer
+ * @param pulIdleTaskStackSize
+ */
 void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer,
                                    uint32_t *pulIdleTaskStackSize) {
     *ppxIdleTaskTCBBuffer = &idleTCB;
@@ -92,6 +147,13 @@ void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackTyp
     *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
 }
 
+/**
+ * @brief The function is used to provide the memory for the RTOS Daemon/Timer Service task
+ * (if configUSE_TIMERS is set to 1)
+ * @param ppxTimerTaskTCBBuffer
+ * @param ppxTimerTaskStackBuffer
+ * @param pulTimerTaskStackSize
+ */
 void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer,
                                     uint32_t *pulTimerTaskStackSize) {
     *ppxTimerTaskTCBBuffer = &timerTCB;
@@ -99,19 +161,33 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
     *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
+/**
+ * @brief The function is used to provide a place to implement timer functionality
+ * (if configUSE_TICK_HOOK is set to 1)
+ */
 void vApplicationTickHook(void) {
-    // Call it every FreeRTOS tick
+    // Call it every FreeRTOS tick (1 kHz)
     HAL_IncTick();
 }
 
-void vApplicationStackOverflowHook(void) {
+/**
+ * @brief The function will be called if FreeRTOS ever detect the stack overflow situation
+ * (if configCHECK_FOR_STACK_OVERFLOW is set to 1/2)
+ * @param xTask is the handle of the offending task
+ * @param pcTaskName is the name of the offending task
+ */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
     __disable_irq();
 
     while (1) {
     }
 }
 
-void VApplicationMallocFailedHook(void) {
+/**
+ * @brief The function will be called if pvPortMalloc() ever returns NULL
+ * (if configUSE_MALLOC_FAILED_HOOK is set to 1)
+ */
+void vApplicationMallocFailedHook(void) {
     __disable_irq();
 
     while (1) {
