@@ -36,7 +36,7 @@ struct UartDef {
     const UartFun_Update init;
     const UartFun_Tx sendData;
     const UartFun_Rx readData;
-    const UartFun_Update checkError;
+    const UartFun_Update saveError;
     const UartFun_State getErrorType;
     const UartFun_State getNumOfErrors;
 };
