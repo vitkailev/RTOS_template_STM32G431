@@ -1,10 +1,10 @@
 #include "stm32g4xx_hal.h"
 
 #include "settings.h"
+#include "uartJob.h"
 
 static TIM_HandleTypeDef timer15Handle;
 static ADC_HandleTypeDef adcHandle;
-static DMA_HandleTypeDef dma1Handle;
 static CRC_HandleTypeDef crcHandle;
 static IWDG_HandleTypeDef wdtHandle;
 
@@ -126,7 +126,6 @@ static int settingTimer(TimerDef *t) {
  */
 static int settingADC(AdcDef *adc) {
     adc->handle = (void *) &adcHandle;
-    adc->dmaHandle = (void *) &dma1Handle;
 
     ADC_HandleTypeDef *adcInit = (ADC_HandleTypeDef *) adc->handle;
     adcInit->Instance = ADC1;
@@ -187,6 +186,32 @@ static int settingADC(AdcDef *adc) {
 }
 
 /**
+ * @brief Setting UART modules
+ * @param uart is the UartDef data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
+static int settingUART(UartDef *uart) {
+    UART_HandleTypeDef *uartInit = (UART_HandleTypeDef *) uart->handle;
+    uartInit->Instance = USART1;
+    uartInit->Init.BaudRate = 115200; // bps
+    uartInit->Init.Mode = UART_MODE_TX_RX;
+    uartInit->Init.WordLength = UART_WORDLENGTH_8B;
+    uartInit->Init.StopBits = UART_STOPBITS_1;
+    uartInit->Init.Parity = UART_PARITY_NONE;
+    uartInit->Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    uartInit->Init.OverSampling = UART_OVERSAMPLING_16;
+    uartInit->Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    uartInit->Init.ClockPrescaler = UART_PRESCALER_DIV1;
+    uartInit->FifoMode = UART_FIFOMODE_DISABLE;
+    uartInit->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+
+    if (HAL_UART_Init(uartInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    return SETTING_SUCCESS;
+}
+
+/**
  * @brief Setting Cyclic-Redundancy-Check (CRC) module
  * @param mcu is the base MCU data structure
  * @return SETTING_SUCCESS or SETTING_ERROR
@@ -237,6 +262,7 @@ int initialization(McuDef *mcu) {
     } else if (settingGPIO() != SETTING_SUCCESS) {
     } else if (settingTimer(&mcu->adc.timer) != SETTING_SUCCESS) {
     } else if (settingADC(&mcu->adc) != SETTING_SUCCESS) {
+    } else if (settingUART(&UART1_intf) != SETTING_SUCCESS) {
     } else if (settingCRC(mcu) != SETTING_SUCCESS) {
     } else if (settingWDT(mcu) != SETTING_SUCCESS) {
     } else {

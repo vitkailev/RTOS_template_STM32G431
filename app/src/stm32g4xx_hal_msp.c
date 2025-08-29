@@ -36,6 +36,9 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static DMA_HandleTypeDef dma1Handle;
+static DMA_HandleTypeDef dma2Handle;
+static DMA_HandleTypeDef dma3Handle;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -109,7 +112,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *hadc) {
             __HAL_RCC_DMAMUX1_CLK_ENABLE();
             __HAL_RCC_DMA1_CLK_ENABLE();
 
-            DMA_HandleTypeDef *dmaInit = (DMA_HandleTypeDef *) Mcu.adc.dmaHandle;
+            DMA_HandleTypeDef *dmaInit = &dma1Handle;
             dmaInit->Instance = DMA1_Channel1;
             dmaInit->Init.Request = DMA_REQUEST_ADC1;
             dmaInit->Init.Direction = DMA_PERIPH_TO_MEMORY;
@@ -143,7 +146,97 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *hadc) {
         HAL_GPIO_DeInit(GPIOA, GPIO_PIN_1);
 
         HAL_NVIC_DisableIRQ(DMA1_Channel1_IRQn);
-        HAL_DMA_DeInit((DMA_HandleTypeDef *) Mcu.adc.dmaHandle);
+        HAL_DMA_DeInit(&dma1Handle);
+    }
+}
+
+/**
+ * @brief Initialize the UART interfaces, turn ON a clock source, setup GPIO and interrupt vector
+ * @param huart is the pointer to the data structure of the UART handle (HAL).
+ */
+void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
+    GPIO_InitTypeDef gpioInit = {0};
+    RCC_PeriphCLKInitTypeDef clockInit = {0};
+    DMA_HandleTypeDef *dmaInit = NULL;
+
+    if (huart->Instance == USART1) {
+        clockInit.PeriphClockSelection = RCC_PERIPHCLK_USART1;
+        clockInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_HSI;
+
+        if (HAL_RCCEx_PeriphCLKConfig(&clockInit) == HAL_OK) {
+            __HAL_RCC_USART1_CLK_ENABLE();
+
+            __HAL_RCC_GPIOC_CLK_ENABLE();
+            gpioInit.Pin = GPIO_PIN_4 | GPIO_PIN_5;
+            gpioInit.Mode = GPIO_MODE_AF_PP;
+            gpioInit.Pull = GPIO_PULLUP;
+            gpioInit.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpioInit.Alternate = GPIO_AF7_USART1;
+            HAL_GPIO_Init(GPIOC, &gpioInit);
+
+            __HAL_RCC_DMAMUX1_CLK_ENABLE();
+            __HAL_RCC_DMA1_CLK_ENABLE();
+
+            dmaInit = &dma2Handle;
+            dmaInit->Instance = DMA1_Channel4;
+            dmaInit->Init.Request = DMA_REQUEST_USART1_TX;
+            dmaInit->Init.Direction = DMA_MEMORY_TO_PERIPH;
+            dmaInit->Init.PeriphInc = DMA_PINC_DISABLE;
+            dmaInit->Init.MemInc = DMA_MINC_ENABLE;
+            dmaInit->Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+            dmaInit->Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+            dmaInit->Init.Mode = DMA_NORMAL;
+            dmaInit->Init.Priority = DMA_PRIORITY_LOW;
+
+            if (HAL_DMA_Init(dmaInit) == HAL_OK) {
+                __HAL_LINKDMA(huart, hdmatx, *dmaInit);
+
+                HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 7, 0);
+                HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+            }
+
+            dmaInit = &dma3Handle;
+            dmaInit->Instance = DMA1_Channel5;
+            dmaInit->Init.Request = DMA_REQUEST_USART1_RX;
+            dmaInit->Init.Direction = DMA_PERIPH_TO_MEMORY;
+            dmaInit->Init.PeriphInc = DMA_PINC_DISABLE;
+            dmaInit->Init.MemInc = DMA_MINC_ENABLE;
+            dmaInit->Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+            dmaInit->Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+            dmaInit->Init.Mode = DMA_NORMAL;
+            dmaInit->Init.Priority = DMA_PRIORITY_HIGH;
+            if (HAL_DMA_Init(dmaInit) == HAL_OK) {
+                __HAL_LINKDMA(huart, hdmarx, *dmaInit);
+
+                HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+            }
+
+            HAL_NVIC_SetPriority(USART1_IRQn, 8, 0);
+            HAL_NVIC_EnableIRQ(USART1_IRQn);
+        }
+    }
+}
+
+/**
+ * @brief DeInitialize the UART interfaces
+ * @param huart is the pointer to the data structure of the UART handle (HAL).
+ */
+void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) {
+        __HAL_RCC_USART1_FORCE_RESET();
+        __HAL_RCC_USART1_RELEASE_RESET();
+        __HAL_RCC_USART1_CLK_DISABLE();
+
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4);
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_5);
+
+        HAL_NVIC_DisableIRQ(DMA1_Channel4_IRQn);
+        HAL_NVIC_DisableIRQ(DMA1_Channel5_IRQn);
+        HAL_NVIC_DisableIRQ(USART1_IRQn);
+
+        HAL_DMA_DeInit(&dma2Handle);
+        HAL_DMA_DeInit(&dma3Handle);
     }
 }
 
