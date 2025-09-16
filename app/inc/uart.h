@@ -3,6 +3,7 @@
 
 #ifdef __cplusplus
 extern "C" {
+
 #endif
 
 #include <stddef.h>
@@ -30,7 +31,7 @@ struct UartDef {
     void *const handle;
 
     bool isInit;
-    enum UART_Errors errType;
+    int32_t errType;
     int32_t errors;
 
     const UartFun_Update init;
