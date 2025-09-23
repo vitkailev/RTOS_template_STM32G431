@@ -173,10 +173,10 @@ void vApplicationTickHook(void) {
 /**
  * @brief The function will be called if FreeRTOS ever detect the stack overflow situation
  * (if configCHECK_FOR_STACK_OVERFLOW is set to 1/2)
- * @param xTask is the handle of the offending task
+ * @param pxTask is the handle of the offending task
  * @param pcTaskName is the name of the offending task
  */
-void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
+void vApplicationStackOverflowHook(TaskHandle_t *pxTask, char *pcTaskName) {
     __disable_irq();
 
     while (1) {
