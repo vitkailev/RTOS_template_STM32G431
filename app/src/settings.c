@@ -2,6 +2,7 @@
 
 #include "settings.h"
 #include "SerialJob.h"
+#include "I2CBusJob.h"
 
 static TIM_HandleTypeDef timer15Handle;
 static TIM_HandleTypeDef timer16Handle;
@@ -259,6 +260,35 @@ static int settingUART(UartDef *uart) {
 }
 
 /**
+ * @brief Setting I2C modules
+ * @param i2c is the I2CDef data structure
+ * @return SETTING_SUCCESS or SETTING_ERROR
+ */
+static int settingI2C(I2CDef *i2c) {
+    I2C_HandleTypeDef *i2cInit = (I2C_HandleTypeDef *) i2c->handle;
+    i2cInit->Instance = I2C1;
+    i2cInit->Init.Timing = 0x10320707; // 400kHz
+    i2cInit->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    i2cInit->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+    i2cInit->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+    i2cInit->Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+    i2cInit->Init.OwnAddress1 = 0x17;
+    i2cInit->Init.OwnAddress2 = 0;
+    i2cInit->Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+
+    if (HAL_I2C_Init(i2cInit) != HAL_OK)
+        return SETTING_ERROR;
+
+    if (HAL_I2CEx_ConfigAnalogFilter(i2cInit, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+        return SETTING_ERROR;
+
+    if (HAL_I2CEx_ConfigDigitalFilter(i2cInit, 0) != HAL_OK)
+        return SETTING_ERROR;
+
+    return SETTING_SUCCESS;
+}
+
+/**
  * @brief Setting Cyclic-Redundancy-Check (CRC) module
  * @param mcu is the base MCU data structure
  * @return SETTING_SUCCESS or SETTING_ERROR
@@ -318,6 +348,7 @@ int initialization(McuDef *mcu) {
     } else if (settingADC(&mcu->adc) != SETTING_SUCCESS) {
     } else if (settingPWM(&mcu->pwm) != SETTING_SUCCESS) {
     } else if (settingUART(&UART1_intf) != SETTING_SUCCESS) {
+    } else if (settingI2C(&I2C1_intf) != SETTING_SUCCESS) {
     } else if (settingCRC(mcu) != SETTING_SUCCESS) {
     } else if (settingWDT(mcu) != SETTING_SUCCESS) {
     } else {

@@ -21,8 +21,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32g4xx_hal.h"
 
-#include "variables.h"
-
 /** @addtogroup STM32G4xx_HAL_Driver
   * @{
   */
@@ -39,6 +37,8 @@
 static DMA_HandleTypeDef dma1Handle;
 static DMA_HandleTypeDef dma2Handle;
 static DMA_HandleTypeDef dma3Handle;
+static DMA_HandleTypeDef dma4Handle;
+static DMA_HandleTypeDef dma5Handle;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -272,6 +272,96 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
 
         HAL_DMA_DeInit(&dma2Handle);
         HAL_DMA_DeInit(&dma3Handle);
+    }
+}
+
+/**
+ * @brief Initialize the I2C interfaces, turn ON a clock source, setup GPIO and interrupt vector
+ * @param hi2c is the pointer to the data structure of the I2C handle (HAL)
+ */
+void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c) {
+    GPIO_InitTypeDef gpioInit = {0};
+    RCC_PeriphCLKInitTypeDef clockInit = {0};
+    DMA_HandleTypeDef *dmaInit = NULL;
+
+    if (hi2c->Instance == I2C1) {
+        clockInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+        clockInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+
+        if (HAL_RCCEx_PeriphCLKConfig(&clockInit) == HAL_OK) {
+            __HAL_RCC_I2C1_CLK_ENABLE();
+
+            __HAL_RCC_GPIOB_CLK_ENABLE();
+            gpioInit.Pin = GPIO_PIN_8 | GPIO_PIN_9;
+            gpioInit.Mode = GPIO_MODE_AF_OD;
+            gpioInit.Pull = GPIO_PULLUP;
+            gpioInit.Speed = GPIO_SPEED_FREQ_LOW;
+            gpioInit.Alternate = GPIO_AF4_I2C1;
+            HAL_GPIO_Init(GPIOB, &gpioInit);
+
+            __HAL_RCC_DMAMUX1_CLK_ENABLE();
+            __HAL_RCC_DMA1_CLK_ENABLE();
+
+            dmaInit = &dma4Handle;
+            dmaInit->Instance = DMA1_Channel2;
+            dmaInit->Init.Request = DMA_REQUEST_I2C1_TX;
+            dmaInit->Init.Direction = DMA_MEMORY_TO_PERIPH;
+            dmaInit->Init.PeriphInc = DMA_PINC_DISABLE;
+            dmaInit->Init.MemInc = DMA_MINC_ENABLE;
+            dmaInit->Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+            dmaInit->Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+            dmaInit->Init.Mode = DMA_NORMAL;
+            dmaInit->Init.Priority = DMA_PRIORITY_LOW;
+
+            if (HAL_DMA_Init(dmaInit) == HAL_OK) {
+                __HAL_LINKDMA(hi2c, hdmatx, *dmaInit);
+
+                HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 7, 0);
+                HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+            }
+
+            dmaInit = &dma5Handle;
+            dmaInit->Instance = DMA1_Channel3;
+            dmaInit->Init.Request = DMA_REQUEST_I2C1_RX;
+            dmaInit->Init.Direction = DMA_PERIPH_TO_MEMORY;
+            dmaInit->Init.PeriphInc = DMA_PINC_DISABLE;
+            dmaInit->Init.MemInc = DMA_MINC_ENABLE;
+            dmaInit->Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+            dmaInit->Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+            dmaInit->Init.Mode = DMA_NORMAL;
+            dmaInit->Init.Priority = DMA_PRIORITY_HIGH;
+            if (HAL_DMA_Init(dmaInit) == HAL_OK) {
+                __HAL_LINKDMA(hi2c, hdmarx, *dmaInit);
+
+                HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+            }
+
+            HAL_NVIC_SetPriority(I2C1_EV_IRQn, 8, 0);
+            HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
+            HAL_NVIC_SetPriority(I2C1_ER_IRQn, 9, 0);
+            HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
+        }
+    }
+}
+
+/**
+ * @brief DeInitialize the I2C interfaces
+ * @param hi2c is the pointer to the data structure of the I2C handle (HAL).
+ */
+void HAL_I2C_MspDeInit(I2C_HandleTypeDef *hi2c) {
+    if (hi2c->Instance == I2C1) {
+        __HAL_RCC_I2C1_FORCE_RESET();
+        __HAL_RCC_I2C1_RELEASE_RESET();
+        __HAL_RCC_I2C1_CLK_DISABLE();
+
+        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8);
+        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_9);
+
+        HAL_NVIC_DisableIRQ(DMA1_Channel2_IRQn);
+        HAL_NVIC_DisableIRQ(DMA1_Channel3_IRQn);
+        HAL_NVIC_DisableIRQ(I2C1_EV_IRQn);
+        HAL_NVIC_DisableIRQ(I2C1_ER_IRQn);
     }
 }
 
