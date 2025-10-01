@@ -12,6 +12,7 @@ Library: [STM32 HAL](https://github.com/STMicroelectronics/STM32CubeG4)
 - [x] Build-in temperature sensor;
 - [x] PWM;
 - [x] MCU-to-PC UART connection;
+- [x] I2C interface;
 - [x] CRC-32/ISO-HDLC;
 - [x] Independent WDT;
 
@@ -25,8 +26,9 @@ Library: [STM32 HAL](https://github.com/STMicroelectronics/STM32CubeG4)
 6) ADC: 12-bits, right, 247.5 cycles, DMA, Timer 15, PA0/PA1 + temperature sensor;
 7) PWM: Timer 16, 10kHz, channel 1, complementary, PB4/PB6, dead time - 24 (330 ns);
 8) UART: UART1 - PC4/PC5, 115200, 8N1, TX/RX-IDLE, FIFO - disabled, DMA;
-9) CRC: input data - bytes, polynomial - 0x04C11DB7, init value - 0xFFFFFFFF, input inversion, output inversion;
-10) WDT: 1 second, prescaler - 8, reload value = 0x0FFF;
+9) I2C: I2C1 - PB8/PB9, 400 kHz, 7 bits address, DMA;
+10) CRC: input data - bytes, polynomial - 0x04C11DB7, init value - 0xFFFFFFFF, input inversion, output inversion;
+11) WDT: 1 second, prescaler - 8, reload value = 0x0FFF;
 
 ## Project structure
 
