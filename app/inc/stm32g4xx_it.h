@@ -49,6 +49,14 @@ void DMA1_Channel5_IRQHandler(void);
 
 void USART1_IRQHandler(void);
 
+void DMA1_Channel2_IRQHandler(void);
+
+void DMA1_Channel3_IRQHandler(void);
+
+void I2C1_EV_IRQHandler(void);
+
+void I2C1_ER_IRQHandler(void);
+
 #ifdef __cplusplus
 }
 #endif

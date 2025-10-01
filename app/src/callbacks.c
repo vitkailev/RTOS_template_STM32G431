@@ -98,3 +98,59 @@ void HAL_UART_AbortCpltCallback(UART_HandleTypeDef *huart) {
 
     portYIELD_FROM_ISR(priorityTaskWoken);
 }
+
+/**
+ * @brief The I2C transfer completion callback function
+ * @param hi2c is the I2C handle structure (HAL)
+ */
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    BaseType_t priorityTaskWoken = pdFALSE;
+
+    if (hi2c->Instance == ((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->Instance) {
+        xTaskNotifyFromISR(Application.handles[I2CBUS_JOB], I2CBUS_NOTIF_TX_FLAG, eSetBits, &priorityTaskWoken);
+    }
+
+    portYIELD_FROM_ISR(priorityTaskWoken);
+}
+
+/**
+ * @brief The I2C receive completion callback function
+ * @param hi2c is the I2C handle structure (HAL)
+ */
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    BaseType_t priorityTaskWoken = pdFALSE;
+
+    if (hi2c->Instance == ((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->Instance) {
+        xTaskNotifyFromISR(Application.handles[I2CBUS_JOB], I2CBUS_NOTIF_RX_FLAG, eSetBits, &priorityTaskWoken);
+    }
+
+    portYIELD_FROM_ISR(priorityTaskWoken);
+}
+
+/**
+ * @brief The I2C error event callback function
+ * @param hi2c is the I2C handle structure (HAL)
+ */
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c) {
+    BaseType_t priorityTaskWoken = pdFALSE;
+
+    if (hi2c->Instance == ((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->Instance) {
+        xTaskNotifyFromISR(Application.handles[I2CBUS_JOB], I2CBUS_NOTIF_ERR_FLAG, eSetBits, &priorityTaskWoken);
+    }
+
+    portYIELD_FROM_ISR(priorityTaskWoken);
+}
+
+/**
+ * @brief The I2C abort event callback function
+ * @param hi2c is the I2C handle structure (HAL)
+ */
+void HAL_I2C_AbortCpltCallback(I2C_HandleTypeDef *hi2c) {
+    BaseType_t priorityTaskWoken = pdFALSE;
+
+    if (hi2c->Instance == ((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->Instance) {
+        xTaskNotifyFromISR(Application.handles[I2CBUS_JOB], I2CBUS_NOTIF_ABORT_FLAG, eSetBits, &priorityTaskWoken);
+    }
+
+    portYIELD_FROM_ISR(priorityTaskWoken);
+}

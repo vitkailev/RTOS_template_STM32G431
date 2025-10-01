@@ -92,3 +92,19 @@ void DMA1_Channel5_IRQHandler(void) {
 void USART1_IRQHandler(void) {
     HAL_UART_IRQHandler((UART_HandleTypeDef *) Serial.uart->handle);
 }
+
+void DMA1_Channel2_IRQHandler(void) {
+    HAL_DMA_IRQHandler(((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->hdmatx);
+}
+
+void DMA1_Channel3_IRQHandler(void) {
+    HAL_DMA_IRQHandler(((I2C_HandleTypeDef *) Sensors.interface.i2c->handle)->hdmarx);
+}
+
+void I2C1_EV_IRQHandler(void) {
+    HAL_I2C_EV_IRQHandler((I2C_HandleTypeDef *) Sensors.interface.i2c->handle);
+}
+
+void I2C1_ER_IRQHandler(void) {
+    HAL_I2C_ER_IRQHandler((I2C_HandleTypeDef *) Sensors.interface.i2c->handle);
+}
