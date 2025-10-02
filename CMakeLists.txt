@@ -16,7 +16,7 @@ set(CMAKE_SYSTEM_PROCESSOR cortex-m4)
 set(CMAKE_EXECUTABLE_SUFFIX ".elf")
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(LINKER_FILE ${CMAKE_SOURCE_DIR}/startup/STM32G431RBTX_FLASH.ld)
 set(STARTUP_FILE ${CMAKE_SOURCE_DIR}/startup/startup_stm32g431xx.s)
@@ -32,7 +32,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_compile_options(${PROJECT_NAME} PRIVATE
         -mcpu=${CMAKE_SYSTEM_PROCESSOR}
         $<$<COMPILE_LANGUAGE:C:-std=gnu${CMAKE_C_STANDARD}>:-std=gnu++${CMAKE_CXX_STANDARD}>
-        -g -O0
+        -g -O2
         -mthumb
         -mfpu=fpv4-sp-d16 -mfloat-abi=hard
         -Wall -Wextra -Wconversion -Wshadow -Wunused -Wuninitialized -Wmissing-declarations -Wpointer-arith -Wlogical-op -Waggregate-return -Wfloat-equal
