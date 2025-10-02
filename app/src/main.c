@@ -3,8 +3,9 @@
 #include "settings.h"
 #include "jobs.h"
 
-JobsDef Application;
 SerialPortDef Serial;
+JobsDef Application;
+SensorsDef Sensors;
 
 int main(void) {
     HAL_Init();

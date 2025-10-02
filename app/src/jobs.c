@@ -5,16 +5,18 @@
 #include "jobs.h"
 #include "utilities.h"
 
-static StaticTask_t task1TCB;
+static StaticTask_t task1CB;
 static StackType_t task1Stack[configMINIMAL_STACK_SIZE];
-static StaticTask_t task2TCB;
+static StaticTask_t task2CB;
 static StackType_t task2Stack[configMINIMAL_STACK_SIZE];
-static StaticTask_t task3TCB;
+static StaticTask_t task3CB;
 static StackType_t task3Stack[configMINIMAL_STACK_SIZE];
+static StaticTask_t task4CB;
+static StackType_t task4Stack[configMINIMAL_STACK_SIZE];
 
-static StaticTask_t idleTCB;
+static StaticTask_t idleCB;
 static StackType_t idleStack[configMINIMAL_STACK_SIZE];
-static StaticTask_t timerTCB;
+static StaticTask_t timerCB;
 static StackType_t timerStack[configTIMER_TASK_STACK_DEPTH];
 
 /**
@@ -114,6 +116,24 @@ static void communicationJob(void *arg) {
 }
 
 /**
+ * @brief Service task for updating the status of sensors
+ * @param arg is the function argument to which the scheduler will send the specified parameter
+ */
+static void serviceJob(void *arg) {
+    SensorsDef *sensors = (SensorsDef *) arg;
+
+    const TickType_t delay = pdMS_TO_TICKS(SERVICE_DELAY_MS);
+    EventBits_t event = 0;
+
+    while (1) {
+        event = xEventGroupWaitBits(sensors->interface.eventGroup, 1,pdTRUE,pdFALSE, delay);
+
+        if (event & 1) {
+        }
+    }
+}
+
+/**
  * @brief Create the prepared task
  * @param jobs is the JobsDef data structure
  * @return 0 - success
@@ -121,14 +141,18 @@ static void communicationJob(void *arg) {
 int createJobs(JobsDef *jobs) {
     jobs->handles[ROUTINE_JOB] = xTaskCreateStatic(routineJob, "routine",
                                                    configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
-                                                   tskIDLE_PRIORITY + 2, task1Stack, &task1TCB);
+                                                   tskIDLE_PRIORITY + 2, task1Stack, &task1CB);
     jobs->handles[SENSORS_JOB] = xTaskCreateStatic(sensorsJob, "sensors",
                                                    configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
-                                                   tskIDLE_PRIORITY + 4, task2Stack, &task2TCB);
+                                                   tskIDLE_PRIORITY + 4, task2Stack, &task2CB);
     jobs->handles[COMMUNICATION_JOB] = xTaskCreateStatic(communicationJob, "communication",
                                                          configMINIMAL_STACK_SIZE, (void *) &jobs->hardware,
-                                                         tskIDLE_PRIORITY + 1, task3Stack, &task3TCB);
+                                                         tskIDLE_PRIORITY + 1, task3Stack, &task3CB);
     jobs->handles[SERIAL_PORT_JOB] = SerialJobInit(&Serial, &UART1_intf, tskIDLE_PRIORITY + 3);
+    jobs->handles[I2CBUS_JOB] = I2CJobInit(&Sensors.interface, &I2C1_intf, tskIDLE_PRIORITY + 3);
+    jobs->handles[SERVICE_JOB] = xTaskCreateStatic(serviceJob, "service",
+                                                   configMINIMAL_STACK_SIZE, (void *) &Sensors,
+                                                   tskIDLE_PRIORITY + 4, task4Stack, &task4CB);
 
     changePinState(&jobs->hardware.led, GPIO_PIN_SET);
     return 0;
@@ -142,7 +166,7 @@ int createJobs(JobsDef *jobs) {
  */
 void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer,
                                    uint32_t *pulIdleTaskStackSize) {
-    *ppxIdleTaskTCBBuffer = &idleTCB;
+    *ppxIdleTaskTCBBuffer = &idleCB;
     *ppxIdleTaskStackBuffer = idleStack;
     *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
 }
@@ -156,7 +180,7 @@ void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackTyp
  */
 void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer,
                                     uint32_t *pulTimerTaskStackSize) {
-    *ppxTimerTaskTCBBuffer = &timerTCB;
+    *ppxTimerTaskTCBBuffer = &timerCB;
     *ppxTimerTaskStackBuffer = timerStack;
     *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
