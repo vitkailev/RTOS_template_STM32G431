@@ -1,3 +1,4 @@
+#include <string.h>
 #include <limits.h>
 
 #include "SerialJob.h"
@@ -74,6 +75,8 @@ TaskHandle_t SerialJobInit(SerialPortDef *port, UartDef *uart, uint8_t priorityL
     port->uart->init(port->uart);
 
     port->errors = 0;
+    memset(port->rxBuffer, 0, SERIAL_PORT_BUFFER_SIZE);
+    memset(port->txBuffer, 0, SERIAL_PORT_BUFFER_SIZE);
 
     port->rxMutex = xSemaphoreCreateMutexStatic(&mutexBufferRx);
     port->rxStream = xStreamBufferCreateStatic(SERIAL_PORT_STREAM_SIZE, SERIAL_PORT_TRIGGER_LEVEL,
